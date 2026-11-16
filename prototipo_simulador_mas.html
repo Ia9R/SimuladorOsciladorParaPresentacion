@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Movimiento Armónico Simple (Prototipo)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 flex flex-col min-h-screen select-none">
+
+    <!-- Barra Superior Compacta (Ideal para Embed en Canva) -->
+    <header class="bg-white border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-2 shadow-sm">
+        <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-indigo-600 animate-pulse"></div>
+            <h1 class="font-bold text-slate-800 text-base sm:text-lg">Movimiento Armónico Simple (MAS)</h1>
+        </div>
+        
+        <!-- Navegación por Pestañas (Vistas Separadas) -->
+        <nav class="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+            <button id="tab-sim" class="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md bg-white text-indigo-600 shadow-sm transition-all">
+                1. Simulación Física
+            </button>
+            <button id="tab-energy" class="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md text-slate-600 hover:text-slate-900 transition-all">
+                2. Gráficas de Energía
+            </button>
+            <button id="tab-kinematics" class="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md text-slate-600 hover:text-slate-900 transition-all">
+                3. Cinemática x(t), v(t), a(t)
+            </button>
+        </nav>
+    </header>
+
+    <!-- Contenedor Principal -->
+    <main class="flex-1 flex flex-col lg:flex-row p-3 sm:p-4 gap-4 max-w-7xl w-full mx-auto">
+        
+        <!-- Área de Visualización (Izquierda / Arriba) -->
+        <section class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden min-h-[340px]">
+            
+            <!-- VISTA 1: Simulación Masa-Resorte -->
+            <div id="view-sim" class="flex-1 flex flex-col">
+                <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                    <span>Sistema Masa-Resorte Horizontal sin Fricción</span>
+                    <span class="font-mono">F = -k·x</span>
+                </div>
+                <div class="relative flex-1 min-h-[240px]" id="sim-canvas-container">
+                    <canvas id="simCanvas"></canvas>
+                </div>
+                <!-- Barra rápida de energías en tiempo real -->
+                <div class="p-3 bg-slate-50 border-t border-slate-200 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div class="bg-white p-2 rounded-lg border border-slate-200">
+                        <span class="block text-slate-400 font-medium">E. Potencial Elástica (U)</span>
+                        <span id="rt-u" class="font-mono font-bold text-blue-600 text-sm">0.00 J</span>
+                    </div>
+                    <div class="bg-white p-2 rounded-lg border border-slate-200">
+                        <span class="block text-slate-400 font-medium">E. Cinética (K)</span>
+                        <span id="rt-k" class="font-mono font-bold text-emerald-600 text-sm">0.00 J</span>
+                    </div>
+                    <div class="bg-white p-2 rounded-lg border border-slate-200">
+                        <span class="block text-slate-400 font-medium">E. Mecánica Total (E)</span>
+                        <span id="rt-e" class="font-mono font-bold text-amber-600 text-sm">0.00 J</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 2: Gráficas de Energía (Separada) -->
+            <div id="view-energy" class="hidden flex-1 flex flex-col">
+                <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                    <span>Conservación de la Energía: E = K + U = ½kA²</span>
+                    <div class="flex gap-3 font-medium">
+                        <span class="text-blue-600">● U(x) = ½kx²</span>
+                        <span class="text-emerald-600">● K(x) = E - U</span>
+                        <span class="text-amber-600">— E Total</span>
+                    </div>
+                </div>
+                <div class="relative flex-1 min-h-[280px]" id="energy-canvas-container">
+                    <canvas id="energyCanvas"></canvas>
+                </div>
+                <div class="px-4 py-2 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 flex flex-wrap justify-between gap-2">
+                    <span>Puntos de retorno: <strong>x = ±A</strong> (U = E, K = 0)</span>
+                    <span>Equilibrio: <strong>x = 0</strong> (U = 0, K = E)</span>
+                    <span>Equipartición (U = K): <strong>x = ±A/√2</strong></span>
+                </div>
+            </div>
+
+            <!-- VISTA 3: Cinemática en el tiempo -->
+            <div id="view-kinematics" class="hidden flex-1 flex-col">
+                <div class="px-4 py-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                    <span>Evolución Temporal (desfase de π/2 entre curvas)</span>
+                    <div class="flex gap-3 font-medium">
+                        <span class="text-indigo-600">● Posición x(t)</span>
+                        <span class="text-emerald-600">● Velocidad v(t)</span>
+                        <span class="text-rose-600">● Aceleración a(t)</span>
+                    </div>
+                </div>
+                <div class="relative flex-1 min-h-[280px]" id="kin-canvas-container">
+                    <canvas id="kinCanvas"></canvas>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Panel de Control y Datos Pertinentes (Derecha / Abajo) -->
+        <aside class="w-full lg:w-80 flex flex-col gap-3">
+            
+            <!-- Controles de Reproducción -->
+            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between gap-2">
+                <button id="btn-play" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-3 rounded-lg text-sm transition-colors flex items-center justify-center gap-1">
+                    <span id="play-icon">⏸</span> <span id="play-text">Pausar</span>
+                </button>
+                <button id="btn-reset" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 px-3 rounded-lg text-sm transition-colors">
+                    ↺ Reiniciar
+                </button>
+            </div>
+
+            <!-- Sliders de Parámetros Modificables -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-4">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Parámetros del Sistema</h2>
+                
+                <!-- Amplitud (A) -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <label for="slider-amp" class="font-medium text-slate-700">Amplitud (A)</label>
+                        <span id="val-amp" class="font-mono font-bold text-indigo-600">1.00 m</span>
+                    </div>
+                    <input id="slider-amp" type="range" min="0.2" max="2.0" step="0.05" value="1.0" class="w-full accent-indigo-600 cursor-pointer">
+                </div>
+
+                <!-- Periodo (T) -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <label for="slider-period" class="font-medium text-slate-700">Periodo (T)</label>
+                        <span id="val-period" class="font-mono font-bold text-indigo-600">2.00 s</span>
+                    </div>
+                    <input id="slider-period" type="range" min="0.5" max="5.0" step="0.1" value="2.0" class="w-full accent-indigo-600 cursor-pointer">
+                </div>
+
+                <!-- Masa (m) -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <label for="slider-mass" class="font-medium text-slate-700">Masa (m)</label>
+                        <span id="val-mass" class="font-mono font-bold text-indigo-600">1.50 kg</span>
+                    </div>
+                    <input id="slider-mass" type="range" min="0.5" max="10.0" step="0.1" value="1.5" class="w-full accent-indigo-600 cursor-pointer">
+                </div>
+
+                <!-- Fase inicial (phi) -->
+                <div>
+                    <div class="flex justify-between text-sm mb-1">
+                        <label for="slider-phase" class="font-medium text-slate-700">Fase inicial (φ)</label>
+                        <span id="val-phase" class="font-mono font-bold text-indigo-600">0° (0 rad)</span>
+                    </div>
+                    <input id="slider-phase" type="range" min="0" max="360" step="15" value="0" class="w-full accent-indigo-600 cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Datos Físicos Pertinentes (Calculados según bibliografía) -->
+            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex-1">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Datos Pertinentes</h2>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                        <span class="text-slate-400 block">Frecuencia (f = 1/T)</span>
+                        <span id="data-freq" class="font-mono font-semibold text-slate-800 text-sm">0.50 Hz</span>
+                    </div>
+                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                        <span class="text-slate-400 block">Frec. Angular (ω)</span>
+                        <span id="data-omega" class="font-mono font-semibold text-slate-800 text-sm">3.14 rad/s</span>
+                    </div>
+                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                        <span class="text-slate-400 block">Constante (k = mω²)</span>
+                        <span id="data-k" class="font-mono font-semibold text-slate-800 text-sm">14.80 N/m</span>
+                    </div>
+                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                        <span class="text-slate-400 block">Tiempo (t)</span>
+                        <span id="data-time" class="font-mono font-semibold text-slate-800 text-sm">0.00 s</span>
+                    </div>
+                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                        <span class="text-slate-400 block">Vel. Máxima (ωA)</span>
+                        <span id="data-vmax" class="font-mono font-semibold text-emerald-700 text-sm">3.14 m/s</span>
+                    </div>
+                    <div class="p-2 bg-slate-50 rounded-lg border border-slate-100">
+                        <span class="text-slate-400 block">Acel. Máxima (ω²A)</span>
+                        <span id="data-amax" class="font-mono font-semibold text-rose-700 text-sm">9.87 m/s²</span>
+                    </div>
+                </div>
+                
+                <!-- Valores Instantáneos -->
+                <div class="mt-3 pt-3 border-t border-slate-100 flex justify-between text-xs font-mono text-slate-600">
+                    <span>x: <strong id="inst-x" class="text-slate-900">0.00m</strong></span>
+                    <span>v: <strong id="inst-v" class="text-slate-900">0.00m/s</strong></span>
+                    <span>F: <strong id="inst-f" class="text-slate-900">0.00N</strong></span>
+                </div>
+            </div>
+
+        </aside>
+    </main>
+
+    <script>
+        // --- ESTADO DEL SISTEMA FÍSICO ---
+        const state = {
+            A: 1.0,           // Amplitud (m)
+            T: 2.0,           // Periodo (s)
+            m: 1.5,           // Masa (kg)
+            phiDeg: 0,        // Fase inicial (grados)
+            t: 0,             // Tiempo transcurrido (s)
+            isPlaying: true,
+            activeTab: 'sim', // 'sim' | 'energy' | 'kinematics'
+            lastTimestamp: null
+        };
+
+        // --- ELEMENTOS DEL DOM ---
+        const canvases = {
+            sim: document.getElementById('simCanvas'),
+            energy: document.getElementById('energyCanvas'),
+            kin: document.getElementById('kinCanvas')
+        };
+        const ctxs = {
+            sim: canvases.sim.getContext('2d'),
+            energy: canvases.energy.getContext('2d'),
+            kin: canvases.kin.getContext('2d')
+        };
+
+        // --- CÁLCULOS FÍSICOS (Basados en Halliday/Resnick Cap. 15 y Sears/Zemansky Cap. 13) ---
+        function getPhysics() {
+            const f = 1 / state.T;                        // Ec. 13.1: f = 1/T
+            const omega = (2 * Math.PI) / state.T;        // Ec. 13.2: ω = 2π/T
+            const k = state.m * omega * omega;            // Ec. 13.9: ω² = k/m => k = mω²
+            const phi = (state.phiDeg * Math.PI) / 180;   // Conversión a radianes
+
+            const phase = omega * state.t + phi;
+            const x = state.A * Math.cos(phase);          // Ec. 13.13: x(t) = A cos(ωt + φ)
+            const v = -omega * state.A * Math.sin(phase); // Ec. 13.15: v(t) = -ωA sen(ωt + φ)
+            const a = -omega * omega * x;                 // Ec. 13.8:  a(t) = -ω²x
+            const F = -k * x;                             // Ec. 13.3:  F = -kx (Ley de Hooke)
+
+            const U = 0.5 * k * x * x;                    // Ec. 13.20: U = ½kx²
+            const K = 0.5 * state.m * v * v;              // Ec. 13.20: K = ½mv²
+            const E = 0.5 * k * state.A * state.A;        // Ec. 13.21: E = ½kA² = constante
+
+            const vMax = omega * state.A;                 // Ec. 13.23: vmax = ωA
+            const aMax = omega * omega * state.A;         // amax = ω²A
+
+            return { f, omega, k, phi, x, v, a, F, U, K, E, vMax, aMax };
+        }
+
+        // --- ACTUALIZACIÓN DE INTERFAZ NUMÉRICA ---
+        function updateUI(phys) {
+            document.getElementById('data-freq').textContent = `${phys.f.toFixed(2)} Hz`;
+            document.getElementById('data-omega').textContent = `${phys.omega.toFixed(2)} rad/s`;
+            document.getElementById('data-k').textContent = `${phys.k.toFixed(2)} N/m`;
+            document.getElementById('data-time').textContent = `${state.t.toFixed(2)} s`;
+            document.getElementById('data-vmax').textContent = `${phys.vMax.toFixed(2)} m/s`;
+            document.getElementById('data-amax').textContent = `${phys.aMax.toFixed(2)} m/s²`;
+
+            document.getElementById('inst-x').textContent = `${phys.x >= 0 ? '+' : ''}${phys.x.toFixed(2)}m`;
+            document.getElementById('inst-v').textContent = `${phys.v >= 0 ? '+' : ''}${phys.v.toFixed(2)}m/s`;
+            document.getElementById('inst-f').textContent = `${phys.F >= 0 ? '+' : ''}${phys.F.toFixed(1)}N`;
+
+            document.getElementById('rt-u').textContent = `${phys.U.toFixed(2)} J`;
+            document.getElementById('rt-k').textContent = `${phys.K.toFixed(2)} J`;
+            document.getElementById('rt-e').textContent = `${phys.E.toFixed(2)} J`;
+        }
+
+        // --- GESTIÓN DE TAMAÑO RESPONSIVO DE CANVAS ---
+        function resizeCanvases() {
+            const containers = {
+                sim: document.getElementById('sim-canvas-container'),
+                energy: document.getElementById('energy-canvas-container'),
+                kin: document.getElementById('kin-canvas-container')
+            };
+
+            for (const key in canvases) {
+                const container = containers[key];
+                const canvas = canvases[key];
+                if (container && container.offsetParent !== null) {
+                    const rect = container.getBoundingClientRect();
+                    const dpr = window.devicePixelRatio || 1;
+                    canvas.width = rect.width * dpr;
+                    canvas.height = rect.height * dpr;
+                    ctxs[key].setTransform(dpr, 0, 0, dpr, 0, 0);
+                }
+            }
+        }
+        window.addEventListener('resize', resizeCanvases);
+
+        // --- DIBUJO 1: SIMULACIÓN MASA-RESORTE ---
+        function drawSim(phys) {
+            const canvas = canvases.sim;
+            const ctx = ctxs.sim;
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+
+            ctx.clearRect(0, 0, w, h);
+
+            const wallX = 40;
+            const centerX = w * 0.55;
+            const floorY = h * 0.65;
+            const maxPixels = Math.min(w * 0.35, 160);
+            const scale = maxPixels / 2.0; // 2.0m es la amplitud máxima del slider
+
+            const massX = centerX + phys.x * scale;
+            const boxSize = 36 + state.m * 3.5; // Tamaño visual proporcional a la masa
+
+            // Suelo y Pared fija
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(wallX, floorY - 80);
+            ctx.lineTo(wallX, floorY);
+            ctx.lineTo(w - 20, floorY);
+            ctx.stroke();
+
+            // Achurado de la pared
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 1.5;
+            for (let y = floorY - 75; y < floorY; y += 10) {
+                ctx.beginPath();
+                ctx.moveTo(wallX, y);
+                ctx.lineTo(wallX - 8, y + 8);
+                ctx.stroke();
+            }
+
+            // Marcas de posición (-A, 0, +A)
+            const ampPx = state.A * scale;
+            drawMarker(ctx, centerX, floorY, '0 (Eq)', '#64748b');
+            drawMarker(ctx, centerX - ampPx, floorY, '-A', '#94a3b8');
+            drawMarker(ctx, centerX + ampPx, floorY, '+A', '#94a3b8');
+
+            // Dibujar Resorte (Zigzag)
+            const springStartX = wallX;
+            const springEndX = massX - boxSize / 2;
+            const springY = floorY - boxSize / 2;
+            const coils = 14;
+            const springLen = springEndX - springStartX;
+
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 2.5;
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(springStartX, springY);
+            ctx.lineTo(springStartX + 10, springY);
+            const usableLen = springLen - 20;
+            for (let i = 0; i <= coils; i++) {
+                const px = springStartX + 10 + (i / coils) * usableLen;
+                const py = springY + (i === 0 || i === coils ? 0 : (i % 2 === 0 ? -10 : 10));
+                ctx.lineTo(px, py);
+            }
+            ctx.lineTo(springEndX, springY);
+            ctx.stroke();
+
+            // Dibujar Bloque de Masa
+            ctx.fillStyle = '#4f46e5';
+            ctx.beginPath();
+            ctx.roundRect(massX - boxSize / 2, floorY - boxSize, boxSize, boxSize, 6);
+            ctx.fill();
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px Inter';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`${state.m.toFixed(1)}kg`, massX, floorY - boxSize / 2);
+
+            // Vectores de Velocidad (Verde) y Fuerza Restauradora (Rojo)
+            if (Math.abs(phys.v) > 0.05) {
+                drawArrow(ctx, massX, floorY - boxSize - 18, massX + phys.v * 12, floorY - boxSize - 18, '#10b981', 'v');
+            }
+            if (Math.abs(phys.F) > 0.1) {
+                drawArrow(ctx, massX, floorY - boxSize - 34, massX + phys.F * 1.2, floorY - boxSize - 34, '#ef4444', 'F');
+            }
+        }
+
+        function drawMarker(ctx, x, y, label, color) {
+            ctx.strokeStyle = color;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(x, y - 70);
+            ctx.lineTo(x, y + 5);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = color;
+            ctx.font = '11px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(label, x, y + 18);
+        }
+
+        function drawArrow(ctx, fromX, fromY, toX, toY, color, label) {
+            const maxArrow = 80;
+            const dx = Math.max(-maxArrow, Math.min(maxArrow, toX - fromX));
+            const finalX = fromX + dx;
+            const headlen = 7;
+            const angle = Math.atan2(toY - fromY, finalX - fromX);
+
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(finalX, toY);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(finalX, toY);
+            ctx.lineTo(finalX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.lineTo(finalX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.font = 'bold 11px Inter';
+            ctx.fillText(label, finalX + (dx >= 0 ? 8 : -8), toY);
+        }
+
+        // --- DIBUJO 2: GRÁFICAS DE ENERGÍA U(x), K(x), E ---
+        function drawEnergyGraph(phys) {
+            const canvas = canvases.energy;
+            const ctx = ctxs.energy;
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+
+            ctx.clearRect(0, 0, w, h);
+
+            const padL = 50, padR = 30, padT = 30, padB = 40;
+            const plotW = w - padL - padR;
+            const plotH = h - padT - padB;
+            const originX = padL + plotW / 2;
+            const originY = h - padB;
+
+            // Ejes
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(padL, originY);
+            ctx.lineTo(w - padR, originY); // Eje X
+            ctx.moveTo(originX, padT);
+            ctx.lineTo(originX, originY);   // Eje Energía
+            ctx.stroke();
+
+            // Etiquetas de ejes
+            ctx.fillStyle = '#64748b';
+            ctx.font = '11px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText('Posición x (m)', w - padR - 30, originY + 25);
+            ctx.fillText('-A', originX - plotW * 0.4, originY + 16);
+            ctx.fillText('+A', originX + plotW * 0.4, originY + 16);
+            ctx.fillText('0', originX, originY + 16);
+
+            const maxX = state.A * 1.25;
+            const maxE = Math.max(phys.E * 1.2, 0.1);
+
+            const toPxX = (xVal) => originX + (xVal / maxX) * (plotW / 2);
+            const toPxY = (eVal) => originY - (eVal / maxE) * plotH;
+
+            // Línea de Energía Mecánica Total (E)
+            const yE = toPxY(phys.E);
+            ctx.strokeStyle = '#d97706';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(toPxX(-state.A), yE);
+            ctx.lineTo(toPxX(state.A), yE);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            ctx.fillStyle = '#d97706';
+            ctx.textAlign = 'left';
+            ctx.fillText(`E = ${phys.E.toFixed(2)} J`, toPxX(-state.A), yE - 6);
+
+            // Parábola Energía Potencial Elástica U(x) = 1/2 k x^2
+            ctx.strokeStyle = '#2563eb';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            for (let i = -50; i <= 50; i++) {
+                const xSample = (i / 50) * state.A;
+                const uSample = 0.5 * phys.k * xSample * xSample;
+                const px = toPxX(xSample);
+                const py = toPxY(uSample);
+                if (i === -50) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            // Parábola Invertida Energía Cinética K(x) = E - U(x)
+            ctx.strokeStyle = '#059669';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            for (let i = -50; i <= 50; i++) {
+                const xSample = (i / 50) * state.A;
+                const kSample = phys.E - 0.5 * phys.k * xSample * xSample;
+                const px = toPxX(xSample);
+                const py = toPxY(kSample);
+                if (i === -50) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+
+            // Puntos actuales sobre las curvas
+            const currPxX = toPxX(phys.x);
+            const currPxU = toPxY(phys.U);
+            const currPxK = toPxY(phys.K);
+
+            // Línea vertical guía
+            ctx.strokeStyle = '#cbd5e1';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(currPxX, originY);
+            ctx.lineTo(currPxX, yE);
+            ctx.stroke();
+
+            // Punto U
+            ctx.fillStyle = '#2563eb';
+            ctx.beginPath();
+            ctx.arc(currPxX, currPxU, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Punto K
+            ctx.fillStyle = '#059669';
+            ctx.beginPath();
+            ctx.arc(currPxX, currPxK, 5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // --- DIBUJO 3: CINEMÁTICA x(t), v(t), a(t) ---
+        function drawKinematicsGraph(phys) {
+            const canvas = canvases.kin;
+            const ctx = ctxs.kin;
+            const w = canvas.width / (window.devicePixelRatio || 1);
+            const h = canvas.height / (window.devicePixelRatio || 1);
+
+            ctx.clearRect(0, 0, w, h);
+
+            const padL = 40, padR = 20, padT = 20, padB = 30;
+            const plotW = w - padL - padR;
+            const plotH = h - padT - padB;
+            const midY = padT + plotH / 2;
+
+            // Eje central t
+            ctx.strokeStyle = '#94a3b8';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(padL, midY);
+            ctx.lineTo(w - padR, midY);
+            ctx.moveTo(padL, padT);
+            ctx.lineTo(padL, h - padB);
+            ctx.stroke();
+
+            const timeWindow = Math.max(state.T * 2, 4); // Mostrar al menos 2 periodos
+            const startTime = Math.max(0, state.t - timeWindow * 0.8);
+            const phi = (state.phiDeg * Math.PI) / 180;
+
+            const drawWave = (fn, maxAmp, color) => {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                const steps = 120;
+                for (let i = 0; i <= steps; i++) {
+                    const tSample = startTime + (i / steps) * timeWindow;
+                    const val = fn(tSample);
+                    const px = padL + (i / steps) * plotW;
+                    const py = midY - (val / maxAmp) * (plotH * 0.42);
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                ctx.stroke();
+            };
+
+            // x(t) normalizada a su amplitud A
+            drawWave((t) => state.A * Math.cos(phys.omega * t + phi), state.A, '#4f46e5');
+            // v(t) normalizada a vMax
+            drawWave((t) => -phys.vMax * Math.sin(phys.omega * t + phi), phys.vMax || 1, '#10b981');
+            // a(t) normalizada a aMax
+            drawWave((t) => -phys.aMax * Math.cos(phys.omega * t + phi), phys.aMax || 1, '#e11d48');
+
+            // Marcador de tiempo actual
+            const currX = padL + ((state.t - startTime) / timeWindow) * plotW;
+            ctx.strokeStyle = '#64748b';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.moveTo(currX, padT);
+            ctx.lineTo(currX, h - padB);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // --- BUCLE DE ANIMACIÓN ---
+        function animate(timestamp) {
+            if (!state.lastTimestamp) state.lastTimestamp = timestamp;
+            const dt = (timestamp - state.lastTimestamp) / 1000;
+            state.lastTimestamp = timestamp;
+
+            if (state.isPlaying) {
+                state.t += Math.min(dt, 0.05); // Evitar saltos grandes al cambiar de pestaña
+            }
+
+            const phys = getPhysics();
+            updateUI(phys);
+
+            if (state.activeTab === 'sim') {
+                drawSim(phys);
+            } else if (state.activeTab === 'energy') {
+                drawEnergyGraph(phys);
+            } else if (state.activeTab === 'kinematics') {
+                drawKinematicsGraph(phys);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- EVENTOS DE CONTROLES ---
+        document.getElementById('slider-amp').addEventListener('input', (e) => {
+            state.A = parseFloat(e.target.value);
+            document.getElementById('val-amp').textContent = `${state.A.toFixed(2)} m`;
+        });
+
+        document.getElementById('slider-period').addEventListener('input', (e) => {
+            state.T = parseFloat(e.target.value);
+            document.getElementById('val-period').textContent = `${state.T.toFixed(2)} s`;
+        });
+
+        document.getElementById('slider-mass').addEventListener('input', (e) => {
+            state.m = parseFloat(e.target.value);
+            document.getElementById('val-mass').textContent = `${state.m.toFixed(2)} kg`;
+        });
+
+        document.getElementById('slider-phase').addEventListener('input', (e) => {
+            state.phiDeg = parseFloat(e.target.value);
+            const rad = (state.phiDeg * Math.PI) / 180;
+            document.getElementById('val-phase').textContent = `${state.phiDeg}° (${rad.toFixed(2)} rad)`;
+        });
+
+        document.getElementById('btn-play').addEventListener('click', () => {
+            state.isPlaying = !state.isPlaying;
+            document.getElementById('play-icon').textContent = state.isPlaying ? '⏸' : '▶';
+            document.getElementById('play-text').textContent = state.isPlaying ? 'Pausar' : 'Reanudar';
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            state.t = 0;
+        });
+
+        // Cambio de pestañas
+        const tabs = ['sim', 'energy', 'kinematics'];
+        tabs.forEach(tab => {
+            document.getElementById(`tab-${tab}`).addEventListener('click', () => {
+                state.activeTab = tab;
+                tabs.forEach(t => {
+                    const btn = document.getElementById(`tab-${t}`);
+                    const view = document.getElementById(`view-${t}`);
+                    if (t === tab) {
+                        btn.className = 'px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md bg-white text-indigo-600 shadow-sm transition-all';
+                        view.classList.remove('hidden');
+                        view.classList.add('flex');
+                    } else {
+                        btn.className = 'px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md text-slate-600 hover:text-slate-900 transition-all';
+                        view.classList.add('hidden');
+                        view.classList.remove('flex');
+                    }
+                });
+                resizeCanvases();
+            });
+        });
+
+        window.onload = () => {
+            resizeCanvases();
+            requestAnimationFrame(animate);
+        };
+    </script>
+</body>
+</html>
